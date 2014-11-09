@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 
 import httplib2
+import argparse
 
 from apiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
-from oauth2client.tools import run
+from oauth2client.tools import run_flow, argparser
 
+
+parser = argparse.ArgumentParser(parents=[argparser])
+flags = parser.parse_args()
 
 # Path to the client_secret.json file downloaded from the Developer Console
 CLIENT_SECRET_FILE = 'client_secret.json'
@@ -24,7 +28,7 @@ http = httplib2.Http()
 # Try to retrieve credentials from storage or run the flow to generate them
 credentials = STORAGE.get()
 if credentials is None or credentials.invalid:
-  credentials = run(flow, STORAGE, http=http)
+  credentials = run_flow(flow, STORAGE, flags, http=http)
 
 # Authorize the httplib2.Http object with our credentials
 http = credentials.authorize(http)
