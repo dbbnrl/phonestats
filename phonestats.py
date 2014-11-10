@@ -4,6 +4,8 @@ import httplib2
 import argparse
 import base64
 import email
+from parse import parse
+import time
 
 from apiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
@@ -74,6 +76,43 @@ def ListMessagesMatchingQuery(service, user_id, query=''):
   except errors.HttpError, error:
     print 'An error occurred: %s' % error
 
+def HandleMessage(service, user_id, msgref):
+  date = ''
+  balance = 0
+  minutes = 0
+  texts = 0
+  data = 0
+
+  id = msgref['id']
+  message = service.users().messages().get(userId=user_id, id=id, format='raw').execute()
+  msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
+  mime_msg = email.message_from_string(msg_str)
+  date_struct = email.utils.parsedate(mime_msg['Date'])
+  date = time.strftime("%x", date_struct)
+  #print 'Id %s on %s: %s' % (id, date, message['snippet'])
+  body = mime_msg.get_payload()
+  for line in body.splitlines():
+    #print line
+    match = parse("Your Current Balance:{:^f}", line)
+    if match:
+      #print ">>>> Balance: %s" % match[0]
+      balance = match[0]
+      continue
+    match = parse("Remaining Minutes:{:^d} - LEFT{}", line)
+    if match:
+      #print ">>>> Minutes: %s" % match[0]
+      minutes = match[0]
+      continue
+    match = parse("Remaining Text Messages:{:^d} - LEFT{}", line)
+    if match:
+      #print ">>>> Texts: %s" % match[0]
+      texts = match[0]
+      continue
+    match = parse("Remaining Data in MB:{:^f}MB - LEFT{}", line)
+    if match:
+      #print ">>>> Data: %s" % match[0]
+      data = match[0]
+  return (date, balance, minutes, texts, data)
 
 gmail_service = setup()
 
@@ -85,15 +124,11 @@ gmail_service = setup()
 #  for thread in threads['threads']:
 #    print 'Thread ID: %s' % (thread['id'])
 
-messages = ListMessagesMatchingQuery(gmail_service, 'me', 'Weekly Status: ')
+messages = ListMessagesMatchingQuery(gmail_service, 'me', 'subject:"Weekly Status: "')
 
 print 'Got %d messages' % (len(messages))
 
 for msgref in messages:
-#  print '%s' % (message['id'])
-  id = msgref['id']
-  message = gmail_service.users().messages().get(userId='me', id=id, format='raw').execute()
-  print 'Id %s: %s' % (id, message['snippet'])
-  body = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
-  print body
+  (date, balance, minutes, texts, data) = HandleMessage(gmail_service, 'me', msgref)
+  print "%s: bal=%f, min=%d, texts=%d, data=%f" % (date, balance, minutes, texts, data)
 
