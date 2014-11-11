@@ -6,6 +6,8 @@ import base64
 import email
 from parse import parse
 import time
+from collections import defaultdict
+import sys
 
 from apiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
@@ -77,6 +79,7 @@ def ListMessagesMatchingQuery(service, user_id, query=''):
     print 'An error occurred: %s' % error
 
 def HandleMessage(service, user_id, msgref):
+  account = ''
   date = ''
   balance = 0
   minutes = 0
@@ -93,6 +96,11 @@ def HandleMessage(service, user_id, msgref):
   body = mime_msg.get_payload()
   for line in body.splitlines():
     #print line
+    match = parse("Your Phone Number:{:^}", line)
+    if match:
+      #print ">>>> Number: %s" % match[0]
+      account = match[0]
+      continue
     match = parse("Your Current Balance:{:^f}", line)
     if match:
       #print ">>>> Balance: %s" % match[0]
@@ -112,7 +120,7 @@ def HandleMessage(service, user_id, msgref):
     if match:
       #print ">>>> Data: %s" % match[0]
       data = match[0]
-  return (date, balance, minutes, texts, data)
+  return (account, date, balance, minutes, texts, data)
 
 gmail_service = setup()
 
@@ -124,11 +132,19 @@ gmail_service = setup()
 #  for thread in threads['threads']:
 #    print 'Thread ID: %s' % (thread['id'])
 
+accounts = defaultdict(list)
+
 messages = ListMessagesMatchingQuery(gmail_service, 'me', 'subject:"Weekly Status: "')
 
 print 'Got %d messages' % (len(messages))
 
 for msgref in messages:
-  (date, balance, minutes, texts, data) = HandleMessage(gmail_service, 'me', msgref)
-  print "%s: bal=%f, min=%d, texts=%d, data=%f" % (date, balance, minutes, texts, data)
+  (account, date, balance, minutes, texts, data) = HandleMessage(gmail_service, 'me', msgref)
+  #print "(%s) on %s: bal=%f, min=%d, texts=%d, data=%f" % (account, date, balance, minutes, texts, data)
+  accounts[account].append((date, balance, minutes, texts, data))
+  print ".",
+  sys.stdout.flush()
 
+print ""
+
+print accounts
